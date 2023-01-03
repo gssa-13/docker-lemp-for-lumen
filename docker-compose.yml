@@ -1,0 +1,63 @@
+version : '3.9'
+services:
+    app:
+        build:
+            context: docker/php/8.1
+            dockerfile: Dockerfile
+        working_dir: /var/www/html
+        restart: always
+        image: lumen/php81:0.0.1
+        networks:
+            - appnet
+        volumes:
+            -   .:/var/www/html
+        ports:
+            - '${APP_PORT:-8080}:8080'
+            - '${APP_PORT_SSL:-443}:443'
+        depends_on:
+            - redis
+            - mysql
+
+    redis :
+        image: redis:7.0.7-alpine3.17
+        networks:
+            - appnet
+        volumes:
+            - redisdata:/data
+        ports:
+            - '${REDIS_PORT:-6379}:6379'
+        healthcheck:
+            test: [ "CMD", "redis-cli", "ping" ]
+            retries: 3
+            timeout: 5s
+
+    mysql:
+        image: mysql:8.0.31
+        ports:
+            - '${DB_PORT:-3306}'
+            - '${DB_FORDWARD_PORT:-33060}:${DB_PORT:-3306}'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ROOT_HOST: "%"
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+        volumes:
+            - mysqldata:/var/lib/mysql
+            - ./docker/config/init.sql:/docker-entrypoint-initdb.d/init.sql
+        networks:
+            - appnet
+        healthcheck:
+            test: [ "CMD", "mysqladmin", "ping", "-p${DB_PASSWORD}" ]
+            retries: 3
+            timeout: 5s
+networks:
+    appnet:
+        driver: bridge
+
+volumes:
+    mysqldata:
+        driver: local
+    redisdata:
+        driver: local
